@@ -165,6 +165,11 @@ def main(args):
                 )
                 
                 train(env=env, hyperparameters=hyperparameters, actor_model=args.actor_model, critic_model=args.critic_model, method=args.method)
+
+                # Cleanly close this Weights & Biases run so that subsequent runs
+                # (e.g., in batch scripts) start with a fresh step counter.
+                if wandb.run is not None:
+                        wandb.finish()
         else:
                 test(env=env, actor_model=args.actor_model, method=args.method)
 

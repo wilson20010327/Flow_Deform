@@ -171,6 +171,9 @@ def main(
     # After training, log a short deterministic rollout video to wandb.
     log_final_video(env=env, agent_state=agent_state, wandb_run=wandb_run, config=config, seed=seed)
 
+    if wandb.run is not None:
+        wandb.finish()
+
 
 if __name__ == "__main__":
     tyro.cli(main, config=(tyro.conf.FlagConversionOff,))

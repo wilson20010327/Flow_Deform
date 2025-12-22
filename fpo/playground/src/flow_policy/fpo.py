@@ -39,6 +39,9 @@ class FpoConfig:
     sde_sigma: float = 0.0
 
     clipping_epsilon: float = 0.05
+    kl_target: float = 0.01
+    kl_coef: float = 0.5
+    max_advantage: float = 5.0
 
     # Based on Brax PPO config:
     batch_size: jdc.Static[int] = 1024
@@ -128,10 +131,10 @@ class FpoState:
             prng0,
             (
                 obs_size + action_size + config.timestep_embed_dim,
-                32,
-                32,
-                32,
-                32,
+                256,
+                256,
+                256,
+                256,
                 action_size,
             ),
         )
@@ -549,6 +552,9 @@ class FpoState:
                 gae_advantages.std() + 1e-8
             )
 
+        # Clip advantages hard to prevent explosions
+        gae_advantages = jnp.clip(gae_advantages, -self.config.max_advantage, self.config.max_advantage)
+
         # Compute policy ratio based on loss mode
         if self.config.loss_mode == "fpo":
             # Original FPO loss computation
@@ -604,7 +610,7 @@ class FpoState:
                 # outliers from blowing up the loss; this is optional.
                 rho_s = jnp.exp(
                     jnp.clip(
-                        transitions.action_info.initial_cfm_loss - cfm_loss, -3.0, 3.0
+                        transitions.action_info.initial_cfm_loss - cfm_loss, -2.0, 2.0
                     )
                 )
                 assert rho_s.shape == (
@@ -665,7 +671,14 @@ class FpoState:
 
         policy_loss = -jnp.mean(jnp.minimum(surrogate_loss1, surrogate_loss2))
 
+        # KL Penalty (approximated as -log(rho))
+        # rho_s = p_new / p_old
+        # KL(old || new) = E_old[-log(rho_s)]
+        approx_kl = -jnp.mean(jnp.log(rho_s))
+        policy_loss += self.config.kl_coef * approx_kl
+
         # Metrics
+        metrics["approx_kl"] = approx_kl
         metrics["clipped_ratio_mean"] = jnp.mean(
             jnp.abs(rho_s - 1.0) > self.config.clipping_epsilon
         )

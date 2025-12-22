@@ -124,6 +124,11 @@ def main(
     print("First train step time:", times[1] - times[0])
     print("~Train time:", times[-1] - times[1])
 
+    # Cleanly close this Weights & Biases run so that subsequent runs
+    # (e.g., in batch scripts) start with a fresh step counter.
+    if wandb.run is not None:
+        wandb.finish()
+
 
 if __name__ == "__main__":
     tyro.cli(main)

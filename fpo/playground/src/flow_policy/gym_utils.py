@@ -9,8 +9,32 @@ from flow_policy import rollouts, fpo
 class GymWrapper:
     def __init__(self, env_name: str, num_envs: int, seed: int = 0):
         def make_env():
-            env = gym.make(env_name)
-            env.reset(seed=seed) 
+            # Try standard Gym first; if the env is from gymnasium_robotics
+            # (e.g. AdroitHandPen-v1), import it to register the envs.
+            try:
+                env = gym.make(env_name)
+            except (gym.error.NameNotFound, gym.error.Error):
+                # Importing gymnasium_robotics has side effects that register
+                # robotics / Adroit environments with Gym.
+                import gymnasium_robotics  # noqa: F401
+                env = gym.make(env_name)
+
+            # If observations are dicts (e.g. Adroit / robotics envs), extract
+            # the low-dimensional 'observation' component so downstream code
+            # always sees a flat vector.
+            if isinstance(env.observation_space, gym.spaces.Dict) and "observation" in env.observation_space.spaces:
+
+                class ExtractObsWrapper(gym.ObservationWrapper):
+                    def __init__(self, env):
+                        super().__init__(env)
+                        self.observation_space = env.observation_space["observation"]
+
+                    def observation(self, observation):
+                        return observation["observation"]
+
+                env = ExtractObsWrapper(env)
+
+            env.reset(seed=seed)
             return env
 
         self.env = gym.vector.SyncVectorEnv([make_env for _ in range(num_envs)])

@@ -18,6 +18,10 @@ wandb/
 *.jpg
 *.log
 
+# Local run outputs
+MUJOCO_LOG.TXT
+eval_results.txt
+
 # IDEs
 .vscode/
 .idea/

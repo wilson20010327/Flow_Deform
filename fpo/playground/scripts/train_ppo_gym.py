@@ -216,10 +216,16 @@ def main(
         agent_state, metrics = agent_state.training_step(transitions)
         
         # Logging
+        # transitions.reward has shape (T, N_envs).
+        # For "total reward", we want per-env returns (sum over time) and then
+        # average across parallel envs.
+        per_env_returns = onp.sum(transitions.reward, axis=0)  # shape (N_envs,)
         log_dict = {
-            "train/mean_reward": onp.mean(transitions.reward),
-            "train/total_reward": onp.sum(transitions.reward),
-            **{f"train/{k}": onp.mean(v) for k, v in metrics.items()},
+            # Average reward per step across all envs
+            "train/mean_step_reward": float(onp.mean(transitions.reward)),
+            # Average total return per env for this rollout window
+            "train/mean_episode_return": float(onp.mean(per_env_returns)),
+            **{f"train/{k}": float(onp.mean(v)) for k, v in metrics.items()},
         }
         wandb_run.log(log_dict, step=i)
         
